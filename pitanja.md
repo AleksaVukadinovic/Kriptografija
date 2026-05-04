@@ -1,0 +1,13 @@
+**Pitanja**:
+- Sta je kriptografija i sta treba da obezbedi?
+- Sta je otvoreni tekst, siforvani tekst, kljuc, siforvanje, desifrovanje?
+- Sta je Cezarova sifra i kako radi?
+- Sta je Vigenerova sifra i kako radi?
+- Sta kaze Kerckhoffsov princip?
+- Sta je simetricna kriptografija?
+- Koje su dve glavne vrste sifri u simetricnoj kriptografiji?
+- Sta su protocne sifre i kako rade?
+- Objasni One-Time Pad(OTP), koje su mu prednosti, a koje mane?
+- Objasni PRNG i cemu sluze, koji problem resava?
+- Sta su blokosvkse sifre i kako rade?
+-
