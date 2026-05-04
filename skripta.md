@@ -303,3 +303,116 @@ Proces se odvija kroz tri faze:
 2. **Šifrovanje** - Pošiljalac pretvara poruku u broj $M$ i računa šifrat $C$: $C = M^e \pmod n$
 3. **Dešifrovanje** - Primalac koristi svoj privatni ključ $d$ da bi vratio originalnu poruku:
 $M = C^d \pmod n$
+
+## ElGamal algoritam za šifrovanje
+
+Postoje tri javna podatka:
+
+- $p$ — ogroman prost broj (po kom radimo mod na sve operacije)
+- $g$ — generator
+- $y$ — javni ključ primaoca
+
+Primalac poseduje i:
+
+- $x$ — privatan ključ
+
+važi: y = g^x
+
+Recimo da pošiljalac želi da pošalje poruku M.
+On bira slučajan ključ sesije k.
+Izračunava g^k. 
+Pošto zna y izračunava y^k.
+Zatim izračunava M*(y^k) i to šalje primaocu, kao i g^k.
+
+Kako primalac iz toga dobija poruku? Pošto zna svoj privatni ključ x, iz primljenog g^k računa (g^k)^x=(g^x)^k — a to je ista vrednost kao y^k koju je pošiljalac iskoristio kao masku. Onda računa inverz tog broja. Množenjem dobija M\*y^k*(y^k)^−1=M.
+
+## Eliptičke krive
+
+### Pojam
+
+**Eliptička kriva** je kriva u ravni data jednačinom (uobičajeno):
+
+$$y^2 = x^3 + ax + b$$
+To nije elipsa, nego ima veze sa eliptickim integralima, pa odatle naziv.
+Ove krive su simetricne oko x-ose.
+Ono sto je posebno za njih je da postoji i jedna "magicna" tacka $\oslash$ — tačka u beskonačnost. Ona nam se ponaša kao neutralni element za operacije.
+
+Eliptičke krive su nam korisne jer možemo da nad njima definišemo operaciju sabiranja:
+
+#### Sabiranje tačaka — geometrijski`
+
+Definišemo operaciju "+" na tačkama krive **geometrijski**:
+
+**Pravilo za $P + Q$ (različite tačke):**
+
+1. Provuci pravu kroz $P$ i $Q$.
+2. Ta prava će seći krivu u tačno jednoj još tački - zovi je $R$.
+3. **$P + Q = -R$** (tj. refleksija $R$-a preko $x$-ose).
+
+**Pravilo za $2P$ (udvostručavanje):**
+
+1. Povuci tangentu na krivu u $P$.
+2. Tangenta seče krivu u još jednoj tački $R$.
+3. **$2P = -R$**.
+
+**Suprotni element $-P$:** tačka sa istom $x$-koordinatom, suprotnim $y$. (To je vertikalna refleksija.)
+
+**Specijalni slučajevi:**
+
+- $P + \oslash = P$ (neutralni element)
+
+- $P + (-P) = \oslash$ (tačka i njen "minus" se ponište)
+
+Ovo nam je **važno** jer:
+Pošto je definisana operacija $+$, koja je **asocijativna** i ima neutralni element i inverze, **skup tačaka eliptičke krive čini grupu**.
+
+| Konačno polje $\mathbb{F}_q^*$ | Eliptička kriva $E$ |
+|---|---|
+| brojevi (skalari)              | tačke krive |
+| množenje $a \cdot b$           | sabiranje tačaka $P + Q$ |
+| stepenovanje $g^n$             | skalarno množenje $nG$ |
+| neutral $1$                    | tačka $\oslash$ |
+| inverz $g^{-1}$                | suprotna tačka $-P$ |
+| generator $g$ grupe $\mathbb{F}_q^*$ | generator $G$ grupe $E(\mathbb{F}_p)$ |
+
+Krive nad konačnim poljem
+
+Za kriptografiju ne radimo nad realnim brojevima — radimo nad $\mathbb{F}_p$ (gde je $p$ veliki prost broj). Tada:
+
+- Tačke krive su parovi $(x, y)$ sa $x, y \in \{0, 1, \dots, p-1\}$ koji zadovoljavaju $y^2 \equiv x^3 + ax + b \pmod{p}$.
+
+- Skup tačaka $E(\mathbb{F}_p)$ je **konačan**, ima u proseku oko $p + 1$ tačaka.
+
+- Sabiranje funkcioniše po istim algebarskim pravilima, samo se sve računa po modulu $p$.
+
+### Problem diskretnog logaritma sa eliptičkim krivama
+
+Imamo eliptičku krivu $E$ nad $\mathbb{F}_p$, i fiksiranu tačku-generator $G$.
+
+- **Lako:** zadato $G$ i ceo broj $n$ → izračunati $nG$ (sa tehnikom "ponavljanog udvostručavanja", isto kao brzo stepenovanje).
+
+- **Teško:** zadato $G$ i $Q = nG$ → naći $n$.
+
+Eliptičke krive koristimo zato što su najbolji napadi na ECDLP eksponencijalni, dok su napadi na klasični DLP subeksponencijalni - pa za istu sigurnost možemo uzeti znatno manji ključ.
+
+## ElGamal sa eliptičkim krivama
+
+Ovo nam je isti problem ElGamala samo što menjamo g -> G, množenje -> sabiranje, stepenovanje -> skalarno množenje.
+
+Javno znamo krivu $E$ nad $\mathbb{F}_p$ i generator-tačku $G$.
+
+Ključ primaoca:
+- privatni: ceo broj x
+- javni: tačna xG
+
+Kako uopšte kodiramo poruku kao tačku?
+Slovo L kodiramo brojem (npr. po ASCII-u). Da bismo dobili tačku, dopišemo jednu cifru i tražimo dok ne nađemo x-koordinatu koja stvarno daje tačku na krivoj.
+
+Pošaljilac šalje poruku (tačju Q primaocu):
+- Pošiljalac bira slučajno k (serijski ključ)
+- Računa tačku kG i tačku k(xG)=(xk)G
+- Šalje par tačaka: (kG, Q+k(xG))
+
+Primalac dešifruje:
+- iz kG i privatnog x računa x(kG)=(xk)G
+- oduzima to od druge komponente: (Q + k(xG)) - (xk)G = Q.
