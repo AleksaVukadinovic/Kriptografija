@@ -124,3 +124,11 @@ def crt_decrypt(key: bytes, ciphertext: bytes, n: int) -> bytes:
     for i in range(0, 1 + len(ciphertext) // block_size):
         keystream += encrypt_block(key, int.to_bytes(n + i, block_size))
     return xor(ciphertext, keystream)
+
+
+# Gde se sve koriste simetricni kriptografski sistemi
+# Komunikacija izmedju uredjaja (HTTPS, VPN, SSH, WiFi, Bluetooth)
+# Sifrovanje diska
+# Sifrovanje podataka u aplikacijama (password manager, E2E)
+# Generisanje pseudo nasumicnih bitova
+# …
