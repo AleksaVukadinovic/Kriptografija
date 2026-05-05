@@ -32,6 +32,8 @@ import json
 import secrets
 from string import ascii_lowercase
 
+from common import bits_to_bytes, bytes_to_bits, xor
+
 with open("english.json", "r") as file:
     freq_eng = json.load(file)
 
@@ -172,7 +174,40 @@ def otp_decrypt(cipher: bytes, key: str) -> str:
 # c1, ..., cn su bitovi koji definisu registar i sluze da odaberu bitove trenutnog stanja na onsovu kojih se racuna naredni bit stanja.
 # Za LFSR je usko vezan polinom C(x)=cnxn+⋯+c1x+1 sa koeficijentima u 𝔽2
 # Na primer, neka je LFSR dužine n=4 definisan polinomom x4+x3+x+1. To znači da se naredni bit stanja računa po formuli si=si−4 XOR si−3 XOR si−1
-#
+
+
+def lfsr(state: list[int], b: int) -> list[int]:
+    stream = state + [0] * b
+    for i in range(len(state), len(stream)):
+        stream[i] = stream[i - 16] ^ stream[i - 15] ^ stream[i - 13] ^ stream[i - 4]
+    return stream[len(state) :]
+
+
+def lfsr_reverse(state: list[int], b: int) -> list[int]:
+    stream = [0] * b + state
+    for j in range(b - 1, -1, -1):
+        stream[j] = stream[j + 16] ^ stream[j + 12] ^ stream[j + 3] ^ stream[j + 1]
+    return stream[:b]
+
+
+def encrypt(key: bytes, message: bytes) -> bytes:
+    keystream = lfsr(bytes_to_bits(key), 8 * len(message))
+    return xor(bits_to_bytes(keystream), message)
+
+
+def decrypt(key: bytes, ciphertext: bytes) -> bytes:
+    keystream = lfsr(bytes_to_bits(key), 8 * len(ciphertext))
+    return xor(bits_to_bytes(keystream), ciphertext)
+
+
+def encrypt_iv(key: bytes, iv: bytes, message: bytes) -> bytes:
+    keystream = lfsr(bytes_to_bits(key + iv), 8 * len(message))
+    return xor(bits_to_bytes(keystream), message)
+
+
+def decrypt_iv(key: bytes, iv: bytes, ciphertext: bytes) -> bytes:
+    keystream = lfsr(bytes_to_bits(key + iv), 8 * len(ciphertext))
+    return xor(bits_to_bytes(keystream), ciphertext)
 
 
 if __name__ == "__main__":
