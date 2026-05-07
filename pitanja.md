@@ -10,4 +10,4 @@
 - Objasni One-Time Pad(OTP), koje su mu prednosti, a koje mane?
 - Objasni PRNG i cemu sluze, koji problem resava?
 - Sta su blokosvkse sifre i kako rade?
--
+- TODO
