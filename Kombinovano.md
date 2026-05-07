@@ -80,11 +80,51 @@ E(k, m) = k XOR m, D(k, c) = k XOR c.
 
 Kako bi sifra zaista bila neprobojna, kljuc mora biti slucajno generisan, iste duzine kao i poruka, koriscen samo jednom i cuvan u tajnosti. Ako bar jedan od ovih uslova nije ispunjen, sifra postaje podlozna napadima
 
+## Afina šifra
+
+Afina šifra je vrsta **monoalfabetske zamene** koja uvodi dodatni matematički korak. Svako slovo se prvo preslikava u numeričku vrednost (A=0, B=1, ..., Z=25), a zatim se transformiše linearnom jednačinom:
+
+- Šifrovanje: `e(x) = (a·x + b) mod 26`
+- Dešifrovanje: `d(y) = a⁻¹·(y - b) mod 26`
+
+gde su `a` i `b` ključevi šifre. **Bitno:** `a` mora biti uzajamno prosto sa 26 (tj. NZD(a, 26) = 1), inače inverz ne postoji i dešifrovanje nije moguće.
+
+**Primer** (a=5, b=8): slovo H (x=7) → e(7) = (5·7 + 8) mod 26 = 43 mod 26 = 17 → R
+
+Cezarova šifra je specijalni slučaj afine šifre gde je a=1. Prostor ključeva je veći od Cezarove (12 mogućih vrednosti za a × 26 za b = 312), ali se i dalje lako razbija frekventnom analizom jer je u pitanju monoalfabetska zamena.
+
+## Plejferova šifra (bigrami)
+
+Plejferova šifra ne šifruje pojedinačna slova, već **parove slova (bigrame)**. Koristi matricu 5×5 popunjenu slovima na osnovu ključne reči. Koristila se u Prvom svetskom ratu.
+
+**Kreiranje matrice:** Upiši jedinstvena slova ključne reči u matricu (bez ponavljanja), pa popuni ostatak preostalim slovima abecede. Slova I i J dele jedno polje.
+
+**Priprema teksta:** Tekst se deli u parove. Ako su oba slova u paru ista (npr. LL), ubacuje se X između → LX, L... Neparan broj slova — dodaj X na kraj.
+
+**Pravila šifrovanja:**
+1. **Isti red:** svako slovo se zameni onim desno od njega (kružno)
+2. **Ista kolona:** svako slovo se zameni onim ispod njega (kružno)
+3. **Pravougaonik:** svako slovo se zameni onim u istom redu ali u koloni drugog slova
+
+Prednost: Razbija jednostavnu frekventnu analizu pojedinačnih slova jer se bigram šifruje kao celina. Slabost: i dalje podložna analizi frekvencija bigrama.
+
 ## Kerckhoffsov princip<!-- {"fold":true} -->
 
 > Bezbednost šifarskog sistema mora da zavisi **isključivo od tajnosti ključa**, a ne od tajnosti algoritma.
 
 Ovo znači: pretpostavlja se da napadač zna potpuno kako algoritam radi. Jedina tajna je ključ. Svi moderni kriptografski sistemi poštuju ovaj princip — AES, RSA, itd. su javno poznati algoritmi.
+
+## Kriptoanaliza
+
+**Kriptoanaliza** je proces pomoću kojeg napadač pokušava da šifrat transformiše u otvoreni tekst, ne znajući ključ.
+
+U zavisnosti od toga kojim informacijama raspolaže napadač, napade delimo u tri vrste:
+
+1. **Napad sa poznavanjem samo šifrata** — Napadač ima samo presretnutu šifrovanu poruku. Oslanja se na statističku analizu (frekventna analiza slova, bigrama, trigrama) ili brute-force. Kod monoalfabetske zamene, ne pojavljuju se sva slova podjednako često (u srpskom 'a' je najčešće, u engleskom 'e'), što olakšava napad.
+
+2. **Napad sa poznatim otvorenim tekstom** — Napadač ima neke parove (otvoreni tekst, šifrat). Na primer, zna da svaka poruka počinje sa "Poštovani" ili da mrežni paketi imaju standardno zaglavlje. Cilj je iz tih parova dedukovati ključ.
+
+3. **Napad sa izabranim otvorenim tekstom** — Napadač može da izabere proizvoljni tekst, ubaci ga u sistem za šifrovanje i dobije rezultat. Šalje matematički pažljivo birane poruke da otkrije strukturu ključa. Realan kod pametnih kartica, bankomata, veb servisa.
 
 ## Simetricni i Asimetricni kriptografski sistemi
 ### Simetricna kriptografija, blokovske i protocne sifre
@@ -148,6 +188,20 @@ Funkcija $f$ moze se iskoristiti za dobijanje heš funkcije. Pretpostavimo da je
 
 # Nedelja 2: Difi-Helman, Stepenovanje kvadriranjem, problem diskretnog logaritma, blokovske sifre<!-- {"fold":true} -->
 
+## Osnove teorije brojeva i konačna polja
+
+Kriptografija se oslanja na aritmetiku u **konačnim poljima**. Osnovna ideja: umesto da radimo sa običnim brojevima, radimo sa brojevima **po modulu** nekog broja.
+
+**Modularna aritmetika:** $a \mod n$ je ostatak pri deljenju a sa n. Npr. 17 mod 5 = 2.
+
+Ako je p **prost broj**, tada skup $Z_p = \{0, 1, 2, \ldots, p-1\}$ sa operacijama sabiranja i množenja po modulu p čini **konačno polje** $F_p$. Svaki nenulti element u $F_p$ ima **multiplikativni inverz** (tj. za svako $a \neq 0$ postoji $b$ takvo da $a \cdot b \equiv 1 \mod p$).
+
+**Multiplikativna grupa** $F^*_p = F_p \setminus \{0\}$ je **ciklična** — postoji element $g$ (naziva se **generator** ili primitivni koren) takav da su svi elementi grupe stepeni od $g$: $g^1, g^2, \ldots, g^{p-1} = 1$.
+
+**XOR i polinomi:** U polju $F_2 = \{0, 1\}$, sabiranje je isto što i XOR. Ovo se proširuje na polinome nad $F_2$ — sabiraju se koeficijenti po modulu 2 (bez prenosa). Npr. $(x^3 + x + 1) + (x^2 + x) = x^3 + x^2 + 1$. Ova aritmetika polinoma se koristi unutar AES-a (polje $F_{2^8}$).
+
+**Inverz u konačnom polju** se računa pomoću proširenog Euklidovog algoritma ili pomoću Male Fermaove teoreme: $a^{-1} \equiv a^{p-2} \mod p$.
+
 ## Difi-Helmanova razmena (usaglasavanje) kljuca<!-- {"fold":true} -->
 
 Ovde koristimo konacno polje $F_q$ i jedan element $g \in F_q$. Najbolje je da g bude generator multiplikativne grupe $F^*_q$  ( = $F_q$ \\ {0}), a prihvatljivo je i da bude element velikog reda. **Difi-Helmanova razmena kljuca** se zasvina na sledecem:
@@ -207,6 +261,60 @@ Algoritam se sastoji od početnog koraka i dve runde transformacija,. Operacije 
 * **MixColumn (MC):** Množenje kolona matrice stanja fiksnim polinomom radi postizanja **difuzije** (širenja uticaja jednog bita na ostatak bloka),
 
 **Dešifrovanje** se vrši primenom **inverznih operacija** u obrnutom redosledu. Pošto su operacije poput AddRoundKey i ShiftRow (u SAES verziji) same sebi inverzne ili se lako invertuju, proces je veoma sličan šifrovanju. Zahvaljujući izostavljanju MixColumn-a u poslednjoj rundi šifrovanja, moguće je organizovati dešifrovanje tako da ima identičnu strukturu koraka, što olakšava hardversku implementaciju.
+
+## Modovi rada blok šifri
+
+Blokovska šifra sama po sebi šifruje samo **jedan blok**. Da bi šifrovali poruku dužu od jednog bloka, koriste se **modovi rada** (operacioni modovi).
+
+### ECB (Electronic Codebook)
+
+Najjednostavniji mod: svaki blok se šifruje nezavisno istim ključem.
+- Šifrovanje: $C_i = E(K, M_i)$
+- Dešifrovanje: $M_i = D(K, C_i)$
+
+**Prednost:** paralelizacija, otpornost na greške u jednom bloku. **Mana:** isti blokovi otvorenog teksta daju iste blokove šifrata → otkriva obrasce u podacima (poznati primer: ECB Tux pingvin).
+
+⚠️ ECB se nikada ne koristi u praksi za podatke koji imaju strukturu.
+
+### CBC (Cipher Block Chaining)
+
+Svaki blok se pre šifrovanja XOR-uje sa prethodnim šifrovanim blokom:
+- Šifrovanje: $C_i = E(K, C_{i-1} \oplus M_i)$, gde je $C_0 = IV$
+- Dešifrovanje: $M_i = D(K, C_i) \oplus C_{i-1}$
+
+**IV (inicijalizacioni vektor)** je slučajan, ne-tajni broj koji se šalje uz poruku. Obezbeđuje da ista poruka šifrovana dva puta daje različit rezultat.
+
+**Prednost:** isti blokovi daju različite šifrate, dešifrovanje je paralelizabilno. **Mana:** šifrovanje je sekvencijalno (svaki blok zavisi od prethodnog).
+
+### CTR (Counter Mode)
+
+Pretvara blokovsku šifru u protočnu. Šifruje brojač (nonce + redni broj) i XOR-uje sa otvorenim tekstom:
+- $K_i = E(K, nonce || i)$
+- $C_i = M_i \oplus K_i$
+
+**Prednosti:** potpuna paralelizacija, ne treba padding, dešifrovanje = šifrovanju. **Mana:** ponovljeni nonce potpuno kompromituje sistem (isto kao kod protočnih šifri).
+
+### Problemi sa ECB modom i protočnim šiframa
+
+**Problem sa ECB:** Obrazci u podacima ostaju vidljivi jer se identični blokovi šifruju u identične šifrate. Primer: šifrovanje bitmap slike u ECB modu ostavlja obrise vidljivim.
+
+**Problem sa protočnim šiframa (Two-Time Pad):** Ako se isti keystream koristi za dve poruke:
+$C_1 \oplus C_2 = (M_1 \oplus K) \oplus (M_2 \oplus K) = M_1 \oplus M_2$
+Napadač dobija XOR dva otvorena teksta i može statistički rekonstruisati obe poruke.
+
+## Meet-in-the-Middle napad (na dvostruki DES)
+
+Zašto ne koristimo prosto 2DES (duplo šifrovanje sa 2 ključa)? $C = E(K_2, E(K_1, M))$
+
+Odgovor: **Meet-in-the-Middle napad** svodi bezbednost dvostrukog DES-a skoro na bezbednost običnog DES-a!
+
+**Kako radi:**
+1. Za poznati par (M, C):
+2. Izračunaj $E(K_1, M)$ za svaki mogući $K_1$ → čuvaj u tabeli
+3. Izračunaj $D(K_2, C)$ za svaki mogući $K_2$ → traži poklapanje u tabeli
+4. Složenost: $2^{56} + 2^{56} = 2^{57}$ umesto očekivanih $2^{112}$
+
+Dvostruki DES sa 2×56=112 bita ključa daje samo $2^{57}$ sigurnosti! Zato se koristi **3DES** (triple DES): $C = E(K_1, D(K_2, E(K_1, M)))$
 
 # Nedelja 3: Hesiranje
 ## RC4
@@ -289,4 +397,282 @@ Primeri i primena:
 
 **Digitalni potpis** je kriptografski mehanizam koji se koristi za obezbeđivanje **autentikacije**, **integriteta** i **neporecivosti** elektronskih poruka ili dokumenata. Dok digitalni potpis povezuje samu poruku sa javnim ključem pošiljaoca, prateći sertifikat je taj koji povezuje taj javni ključ sa konkretnom osobom.
 
-Digitalni potpisi se primarno zasnivaju na **kriptografiji sa javnim ključem** (asimetričnoj kriptografiji) i **jednosmernim funkcijama**
+Digitalni potpisi se primarno zasnivaju na **kriptografiji sa javnim ključem** (asimetričnoj kriptografiji) i **jednosmernim funkcijama**.
+
+**Kako radi:**
+1. Pošiljalac izračuna heš poruke: $h = H(M)$
+2. Šifruje heš svojim **privatnim ključem**: $sig = Sign(K_{priv}, h)$
+3. Šalje: $(M, sig)$
+
+**Verifikacija (primalac):**
+1. Izračuna heš primljene poruke: $h' = H(M)$
+2. Dekriptuje potpis **javnim ključem** pošiljaoca: $h = Verify(K_{pub}, sig)$
+3. Proveri: $h == h'$ → potpis je validan
+
+**Razlika od MAC-a:** MAC je simetričan (ko god ima ključ može i da generiše i da verifikuje) — ne daje **neporecivost**. Digitalni potpis je asimetričan: samo vlasnik privatnog ključa može da potpiše, ali svako sa javnim ključem može da verifikuje.
+
+## RSA
+
+**RSA (Rivest–Shamir–Adleman)** je najpoznatiji algoritam asimetrične kriptografije. Bezbednost se zasniva na težini **faktorizacije velikih brojeva**.
+
+**Generisanje ključeva:**
+1. Izaberi dva velika prosta broja $p$ i $q$
+2. Izračunaj $n = p \cdot q$
+3. Izračunaj Ojlerovu funkciju $\phi(n) = (p-1)(q-1)$
+4. Izaberi $e$ takvo da $1 < e < \phi(n)$ i $NZD(e, \phi(n)) = 1$
+5. Izračunaj $d$ tako da $e \cdot d \equiv 1 \pmod{\phi(n)}$
+
+**Javni ključ:** $(n, e)$ | **Privatni ključ:** $d$
+
+**Šifrovanje:** $C = M^e \mod n$
+**Dešifrovanje:** $M = C^d \mod n$
+
+**Zašto radi?** Ojlerova teorema: $M^{e \cdot d} \equiv M^{1 + k\phi(n)} \equiv M \pmod{n}$
+
+**Primer (p=11, q=5):** $n=55$, $\phi(n)=40$, $e=3$, $d=27$. Poruka $M=7$: $C = 7^3 \mod 55 = 13$. Dešifrovanje: $M = 13^{27} \mod 55 = 7$.
+
+**Sigurnost:** Ako napadač faktorizuje $n$, može izračunati $\phi(n)$, pa $d$. Preporučene dužine ključa: minimalno 2048 bita.
+
+## Rođendanski paradoks
+
+Objasnjava zašto heš mora biti dovoljno dugačak.
+
+**Paradoks:** U grupi od samo 23 osobe, verovatnoća da dve imaju isti rođendan je > 50%.
+
+**Uticaj na kriptografiju:** Za heš od $n$ bita:
+- Brute-force za jednosmernost (naći inverz): ~$2^n$ pokušaja
+- Brute-force za koliziju (naći bilo koji par): ~$2^{n/2}$ pokušaja!
+
+Zato MD5 (128b → kolizija za $2^{64}$) i SHA-1 (160b → $2^{80}$) **nisu sigurni**. SHA-256 zahteva $2^{128}$ pokušaja za koliziju — sigurno.
+
+## Obavezujuća šema (Commitment Scheme)
+
+Mehanizam koji omogućava da se osoba **obaveže na izbor** bez da ga otkrije, a da posle ne može da ga promeni.
+
+**Problem:** Bacanje novčića preko telefona — ko god baca može da laže.
+
+**Rešenje:**
+1. Alisa baca novčić, dobija ishod $I$ (glava/pismo)
+2. Alisa bira random **salt** $S$
+3. Alisa šalje Bobanu: $commitment = H(I \| S)$
+   - Boban ne može iz heša da sazna $I$ (jednosmernost)
+   - Alisa ne može da promeni $I$ jer bi se promenio heš (otpornost na kolizije)
+4. Boban kaže šta se dešava u kom slučaju
+5. Alisa otkriva: $I$ i $S$
+6. Boban proverava: $H(I \| S) == commitment$?
+
+**Zašto salt?** Bez salta, Boban bi mogao da proba $H("glava")$ i $H("pismo")$ i sazna ishod.
+
+## HMAC (Hash-based Message Authentication Code)
+
+Obezbeđuje **integritet** i **autentičnost** poruke koristeći heš funkciju i deljeni tajni ključ.
+
+**Naivni pristup (pogrešan):** $MAC = H(K \| M)$ — ranjiv na **length extension napad** kod Merkle-Damgård heš funkcija (MD5, SHA-1, SHA-2). Napadač može iz $H(K \| M)$ da izračuna $H(K \| M \| padding \| M')$ bez poznavanja ključa!
+
+**Ispravan HMAC:**
+$$HMAC(K, M) = H((K \oplus opad) \| H((K \oplus ipad) \| M))$$
+
+Dvostruko heširanje sa različitim padding-ima (ipad=0x36, opad=0x5c) sprečava length extension napad.
+
+## Merkle stablo
+
+Hijerarhijska struktura heševa za **efikasnu verifikaciju integriteta** velikih skupova podataka.
+
+**Princip:**
+- **Listovi:** heševi pojedinačnih podataka
+- **Unutrašnji čvorovi:** heš konkatenacije svoje dece
+- **Koren (Merkle Root):** jedan heš koji predstavlja sve podatke
+
+**Ključno svojstvo:** Promena bilo kog podatka u listu menja koren stabla.
+
+**Efikasna verifikacija (Merkle proof):** Da dokažeš da je podatak u skupu od N elemenata, treba ti samo $O(\log N)$ heševa umesto svih $N$.
+
+**Primene:** Git (commit = heš korena), Blockchain (svaki blok sadrži Merkle Root transakcija), efikasno poređenje velikih skupova fajlova.
+
+## KDF (Key Derivation Function)
+
+Funkcija koja od **slabe lozinke** pravi **jak kriptografski ključ**.
+
+**Zašto je potrebna?** Korisničke lozinke su kratke i predvidive — loš materijal za ključ. KDF dodaje:
+- **Sporost:** Probanje jedne lozinke traje dugo → brute-force je skuplji
+- **Salt:** Ista lozinka + različit salt → potpuno različit izlaz (sprečava rainbow tabele)
+- **Memorijska zahtevnost:** Teža paralelizacija na GPU/ASIC
+
+**Čuvanje lozinki u bazi:**
+- Registracija: $salt = random()$, $hash = KDF(lozinka, salt, parametri)$, čuvaj $(salt, hash)$
+- Login: izračunaj $KDF(uneta\_lozinka, salt)$ i uporedi sa čuvanim hešom
+
+**Poznate KDF:** PBKDF2 (iterativno heširanje), bcrypt (Blowfish), scrypt (memorijski zahtevan), **Argon2** (preporučen danas — konfigurabilan CPU + memorija).
+
+# Nedelja 4: Asimetrična kriptografija — ElGamal, Eliptičke krive, Sertifikati
+
+## Mesi-Omura protokol (idejno)
+
+Analogija sa katancima — ilustruje da je moguća bezbedna komunikacija **bez zajedničkog ključa**:
+
+1. Alisa stavlja poruku u kutiju, zaključava **svojim** katancem → šalje Bobanu
+2. Boban NE MOŽE otvoriti, ali stavlja i **svoj** katanac → šalje nazad Alisi
+3. Alisa skida **svoj** katanac → šalje Bobanu
+4. Boban skida **svoj** katanac → čita poruku
+
+Niko osim Alise i Bobana nije mogao da čita poruku, a nikad nisu razmenili ključ! U praksi se implementira korišćenjem komutativnog šifrovanja (gde je redosled primene ključeva nebitan).
+
+## Diffie-Hellman razmena ključeva (pogled sa vežbi)
+
+Nije sistem za šifrovanje, već protokol kojim dve strane **dogovaraju zajednički tajni ključ** preko nesigurnog kanala. Zasniva se na **problemu diskretnog logaritma**.
+
+**Protokol:**
+1. Javni parametri: veliki prost $p$, generator $g$
+2. Alisa bira privatno $a$, računa $A = g^a \mod p$ i šalje Bobanu
+3. Boban bira privatno $b$, računa $B = g^b \mod p$ i šalje Alisi
+4. Alisa računa: $S = B^a \mod p = g^{ab} \mod p$
+5. Boban računa: $S = A^b \mod p = g^{ab} \mod p$ — **isto!**
+
+**Šta napadač vidi?** $g, p, A, B$ — ali da bi izračunao $S$, morao bi da nađe $a$ ili $b$ (problem diskretnog logaritma).
+
+**Problem:** DH sam po sebi ne štiti od **Man-in-the-Middle** napada. Rešenje: sertifikati.
+
+## ElGamal algoritam za šifrovanje
+
+Asimetrični kriptosistem zasnovan na problemu diskretnog logaritma.
+
+**Javni podaci:** $p$ (prost broj), $g$ (generator), $y = g^x \mod p$ (javni ključ primaoca)
+**Privatni ključ primaoca:** $x$
+
+**Šifrovanje** (pošiljalac šalje poruku $M$):
+1. Bira slučajan ključ sesije $k$
+2. Računa $c_1 = g^k \mod p$
+3. Računa $c_2 = M \cdot y^k \mod p$
+4. Šalje par $(c_1, c_2)$
+
+**Dešifrovanje** (primalac koristi privatni ključ $x$):
+1. Iz $c_1$ računa $S = c_1^x = (g^k)^x = g^{kx} \mod p$
+2. Računa inverz: $S^{-1} \mod p$
+3. Dobija poruku: $M = c_2 \cdot S^{-1} \mod p$
+
+**Bitno:** Random $k$ se **mora menjati** za svako šifrovanje. Ponavljanje $k$ potpuno kompromituje sistem. Šifrat je **dva puta duži** od poruke.
+
+## Eliptičke krive (ECC)
+
+**Eliptička kriva** je kriva data jednačinom: $y^2 = x^3 + ax + b$ (Weierstrass forma)
+
+To nije elipsa — naziv dolazi od eliptičkih integrala. Kriva je simetrična oko x-ose i ima posebnu "tačku u beskonačnosti" $\mathcal{O}$ koja služi kao neutralni element.
+
+### Sabiranje tačaka
+
+Nad tačkama krive definišemo operaciju "+":
+
+**$P + Q$ (različite tačke):** Pravuči pravu kroz $P$ i $Q$, ona seče krivu u trećoj tački $R'$. Refleksija $R'$ preko x-ose daje $P + Q$.
+
+**$2P$ (udvostručavanje):** Tangenta u $P$ seče krivu u $R'$, refleksija daje $2P$.
+
+**Specijalni slučajevi:** $P + \mathcal{O} = P$, $P + (-P) = \mathcal{O}$
+
+Ovim dobijamo **grupu** — skup tačaka sa asocijativnom operacijom, neutralnim elementom i inverzima.
+
+### Analogija sa klasičnim DLP
+
+| Konačno polje $F_q^*$ | Eliptička kriva $E$ |
+|---|---|
+| Množenje $a \cdot b$ | Sabiranje tačaka $P + Q$ |
+| Stepenovanje $g^n$ | Skalarno množenje $nG$ |
+| Neutralni element $1$ | Tačka $\mathcal{O}$ |
+| Generator $g$ | Generator-tačka $G$ |
+
+### Krive nad konačnim poljem
+
+Za kriptografiju radimo nad $F_p$ (gde je $p$ veliki prost broj):
+- Tačke su parovi $(x, y)$ sa $x, y \in \{0, ..., p-1\}$ koji zadovoljavaju $y^2 \equiv x^3 + ax + b \pmod{p}$
+- Skup tačaka $E(F_p)$ je konačan (~$p+1$ tačaka)
+- Sve operacije se računaju po modulu $p$
+
+### Problem diskretnog logaritma sa eliptičkim krivama (ECDLP)
+
+- **Lako:** dato $G$ i $n$ → izračunati $nG$ (algoritmom "double-and-add", O(log n))
+- **Teško:** dato $G$ i $Q = nG$ → naći $n$
+
+Bolji napadi na ECDLP su **eksponencijalni** (za razliku od subeksponencijalnih napada na klasičan DLP), pa za istu sigurnost možemo koristiti **mnogo kraće ključeve**:
+
+| ECC ključ | RSA ključ | Sigurnost |
+|---|---|---|
+| 256 bita | 3072 bita | ~128 bita |
+| 384 bita | 7680 bita | ~192 bita |
+
+### ElGamal sa eliptičkim krivama
+
+Isti princip kao običan ElGamal, samo se menja: množenje → sabiranje, stepenovanje → skalarno množenje.
+
+**Ključ primaoca:** privatni $x$, javni $xG$ (tačka na krivoj)
+
+**Šifrovanje poruke** (tačka $Q$):
+- Bira slučajno $k$
+- Šalje par: $(kG,\ Q + k(xG))$
+
+**Dešifrovanje:**
+- Iz $kG$ i privatnog $x$ računa $x(kG) = (xk)G$
+- Oduzima: $(Q + k(xG)) - (xk)G = Q$
+
+## Digitalni potpisi (dopuna)
+
+**Proces potpisivanja:**
+1. Izračunaj heš poruke: $h = H(M)$
+2. Potpiši hešom privatnim ključem: $sig = Sign(K_{priv}, h)$
+3. Pošalji: $(M, sig)$
+
+**Zašto heširati pre potpisivanja?** RSA potpis je spor za velike podatke. Heš svodi poruku na fiksnu dužinu (npr. 256b) pa se potpisuje samo heš.
+
+**Sign-then-Encrypt vs Encrypt-then-Sign:**
+- **Sign-then-Encrypt:** Potpis + poruka → šifruj sve. Smatra se boljim jer potpis štiti originalni tekst.
+- **Encrypt-then-Sign:** Šifruj poruku → potpiši šifrat.
+
+## Sertifikati i CA (Certificate Authority)
+
+**Problem:** DH i svi asimetrični sistemi bez autentikacije su podložni **Man-in-the-Middle** napadu — napadač se ubaci između i uradi DH sa obe strane.
+
+**Sertifikat** je digitalni dokument koji vezuje **javni ključ za identitet**. Sadrži:
+- Javni ključ vlasnika
+- Identitet (domen, npr. google.com)
+- Izda vač (CA koji je potpisao sertifikat)
+- Period važenja
+- **Potpis CA** — ovo garantuje autentičnost
+
+**Lanac poverenja (Chain of Trust):**
+- Root CA (čiji su ključevi ugrađeni u browser/OS)
+  - Intermediate CA (potpisan od Root CA)
+    - Server sertifikat (potpisan od Intermediate CA)
+
+Klijent se penje lancem dok ne dođe do Root CA kome veruje.
+
+**Opozivanje sertifikata:** CRL (lista opozvanih), OCSP (online provera u realnom vremenu), OCSP Stapling (server kešira odgovor CA i šalje ga klijentu).
+
+## Vremenski pečati (TSA)
+
+Dokaz da je dokument postojao u određenom trenutku:
+1. Izračunaj heš dokumenta: $h = H(dokument)$
+2. Pošalji $h$ ka TSA (Time Stamping Authority)
+3. TSA nadoveže tačno vreme i potpiše: $potpis = Sign(K_{TSA}, h \| vreme)$
+4. Dobiješ vremenski pečat: $(h, vreme, potpis)$
+
+Alternativa: **blockchain** — heš se upiše u transakciju čiji je timestamp neopoziv.
+
+## Onion šifrovanje (Tor mreža)
+
+Tehnika za **anonimnu komunikaciju** — poruka se šifruje u više slojeva:
+
+1. Alisa šifruje poruku u 3 sloja: $C = E(K_1, E(K_2, E(K_3, M)))$
+2. Svaki čvor skida jedan sloj:
+   - $N_1$: skida spoljašnji sloj, prosleđuje $N_2$
+   - $N_2$: skida drugi sloj, prosleđuje $N_3$
+   - $N_3$: skida poslednji sloj, šalje serveru $M$
+3. Nijedan čvor ne zna i pošiljaoca i primaoca:
+   - $N_1$ zna: Alisa → $N_2$ (ne zna krajnje odredište)
+   - $N_2$ zna: $N_1$ → $N_3$ (ne zna ni pošiljaoca ni primaoca)
+   - $N_3$ zna: $N_2$ → Server (ne zna originalnog pošiljaoca)
+
+## Garlic šifrovanje (I2P mreža)
+
+Slično onion-u, ali sa grupnim slanjem:
+- Više poruka se kombinuje u **jedan paket** (kao čenovi belog luka)
+- Svaki čvor dešifruje samo deo koji mu je namenjen
+- Jedan garlic paket sadrži poruke za **različite primaoce** → teže je analizirati saobraćaj
+- Komunikacija je uglavnom unutar same I2P mreže
