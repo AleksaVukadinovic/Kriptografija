@@ -811,3 +811,322 @@ if __name__ == "__main__":
 Za linearnu regresiju sada poredimo sva tri režima na svim instancama iz baze.
 
 Dobili smo iste rezultate u clear, simulate i execute režimu jer je model samo linearna funkcija i posle kvantizacije se ista računanja rade na isti način i u običnom i u FHE okruženju. Razlike se obično pojavljuju tek kod složenijih modela, npr. kada postoje nelinearne funkcije, ili kada se zbog ograničene preciznosti i kvantizacije mora raditi aproksimacija računanja, pa FHE izvršavanje više ne može da bude potpuno identično običnom izračunavanju.
+
+### Primer 4 - Neuronska mreža nad šifrovanim podacima
+
+Koristimo isti skup podataka o osiguranju kao u prethodnom primeru. Sada umesto linearne regresije treniramo neuronsku mrežu kompatibilnu sa FHE. Ključna razlika je da neuronske mreže sadrže nelinearne aktivacione funkcije (npr. ReLU), koje FHE ne može direktno da izračuna — mora da ih aproksimira pomoću polinoma. Zbog toga se uvodi **kvantizacija**: težine i aktivacije se zaokružuju na mali broj bita (npr. 3 bita), što drastično smanjuje grešku aproksimacije i ubrzava FHE izvršavanje, ali može da smanji preciznost modela.
+
+```python
+import torch
+import torch.nn as nn
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from concrete.ml.sklearn import NeuralNetRegressor
+
+np.random.seed(42)
+torch.manual_seed(42)
+
+# Učitavanje i priprema podataka (isti preprocessing kao u primeru 3)
+df = pd.read_csv("insurance.csv")
+X_raw = df.drop(columns=["charges"])
+y_thousands = df["charges"].to_numpy() / 1000.0
+X = pd.get_dummies(X_raw, drop_first=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y_thousands, test_size=0.2, random_state=42)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train).astype(np.float32)
+X_test_scaled  = scaler.transform(X_test).astype(np.float32)
+y_train_nn = y_train.reshape(-1, 1).astype(np.float32)
+
+fhe_nn_model = NeuralNetRegressor(
+    module__n_layers=2,                         # broj skrivenih slojeva
+    module__activation_function=nn.ReLU,        # aktivaciona funkcija
+    module__n_hidden_neurons_multiplier=10,      # širina skrivenog sloja
+    module__n_w_bits=3,   # kvantizacija težina — manji broj bita = brži FHE, slabija preciznost
+    module__n_a_bits=3,   # kvantizacija aktivacija
+    module__n_accum_bits=8,                     # bitovi za akumulirane vrednosti
+    max_epochs=15, batch_size=64, lr=0.01,
+    train_split=None, verbose=0
+)
+
+fhe_nn_model.fit(X_train_scaled, y_train_nn)
+fhe_nn_model.compile(X_train_scaled[:200])
+
+# Poređenje sva tri režima na prvih 20 test instanci
+nn_clear   = fhe_nn_model.predict(X_test_scaled[:20])
+nn_sim     = fhe_nn_model.predict(X_test_scaled[:20], fhe="simulate")
+nn_execute = fhe_nn_model.predict(X_test_scaled[:20], fhe="execute")
+
+print(pd.DataFrame({
+    "actual":           np.ravel(y_test[:20]),
+    "clear":            np.ravel(nn_clear),
+    "simulate":         np.ravel(nn_sim),
+    "execute":          np.ravel(nn_execute)
+}))
+```
+
+Kod neuronskih mreža tipično vidimo malu razliku između `simulate`/`execute` i `clear` predikcija. To je posledica kvantizacije i aproksimacije ReLU aktivacije. Povećanjem broja bita (`n_w_bits`, `n_a_bits`) preciznost raste, ali FHE izvršavanje postaje sporije.
+
+## Primene ZK i FHE
+
+### Zašto su ZKP i FHE važni?
+
+ZKP i FHE rešavaju fundamentalni problem privatnosti u digitalnom svetu: kako dokazati nešto ili obraditi podatke, a da se pritom ne otkriju sami podaci. Obe tehnologije su komplementarne:
+
+- **ZKP** dokazuje ispravnost izračunavanja bez otkrivanja ulaznih podataka.
+- **FHE** izvršava izračunavanje nad šifrovanim podacima bez dešifrovanja.
+
+Kombinacijom ove dve tehnologije moguće je graditi sisteme u kojima ni server ne vidi podatke, ni verifikator ne vidi tajnu, a ipak se sve može proveriti.
+
+### Primene ZKP-a
+
+#### 1. Blockchain i kriptovalute
+
+Najveća trenutna primena ZKP-a je u blockchain tehnologiji:
+
+- **Zcash** — prva kriptovaluta koja koristi zk-SNARK dokaze (konkretno Groth16) za potpuno privatne transakcije. Pošiljalac, primalac i iznos su šifrovani na blockchainu, ali svaki čvor mreže može da verifikuje da transakcija nije lažna (da niko ne troši više nego što ima) bez otkrivanja detalja.
+
+- **zkEVM (Zero-Knowledge Ethereum Virtual Machine)** — projekti poput Polygon zkEVM, zkSync Era i Scroll koriste ZKP da "sažmu" stotine ili hiljade Ethereum transakcija u jedan jedini dokaz koji se proverava na glavnom Ethereum lancu. Ovaj pristup se zove **ZK rollup** i drastično povećava skalabilnost (propusnost) mreže uz istu sigurnost.
+
+  Primer: Umesto da Ethereum obradi 15 transakcija u sekundi, zkEVM može da obradi 2000+ transakcija van lanca i pošalje samo jedan ZK dokaz koji potvrđuje sve.
+
+- **Tornado Cash** — protokol za mešanje kriptovaluta koji koristi ZKP (Merkle stablo + nullifier mehanizam sličan Semaphore-u) da bi prekinuo vezu između adrese pošiljaoca i primaoca.
+
+#### 2. Digitalni identitet i autentifikacija
+
+- **Selektivno otkrivanje atributa**: Korisnik može dokazati da je stariji od 18 godina bez otkrivanja tačnog datuma rođenja, ili da je državljanin određene zemlje bez otkrivanja broja pasoša. Projekti poput **Polygon ID** i **World ID** (Worldcoin) koriste ZKP za ovo.
+
+- **Anonimno glasanje** (videli smo Semaphore i MACI): Birač dokazuje da ima pravo glasa i da nije već glasao, bez otkrivanja identiteta.
+
+- **Prijava na servise**: Umesto da sajtu date korisničko ime i lozinku (koji mogu biti ukradeni), ZKP vam omogućava da dokažete da znate lozinku bez njenog slanja.
+
+#### 3. Privatni pametni ugovori
+
+- **Aleo** — blockchain platforma na kojoj se pametni ugovori pišu u jeziku **Leo** (sličan Circomu, ali viši nivo apstrakcije). Svaka transakcija automatski generiše ZK dokaz koji se verifikuje na lancu.
+
+- **Aztec Network** — privatni sloj na Ethereumu koji koristi PLONK-bazirane ZKP dokaze za šifrovane DeFi transakcije.
+
+#### 4. Verifikacija mašinskog učenja (zkML)
+
+Jedan od najzanimljivijih novih pravaca: dokazati da je AI model dao određeni izlaz za određeni ulaz, bez otkrivanja težina modela ili ulaznih podataka.
+
+- **Primer**: Banka želi da dokaže regulatoru da njen model za odobravanje kredita nije diskriminatoran — ali ne želi da otkrije same parametre modela (poslovni secret). ZKP omogućava tačno to.
+
+- **Projekti**: EZKL, Modulus Labs, Giza — alati koji kompajluju neuronske mreže (PyTorch/ONNX) u ZK kola.
+
+#### 5. Privatni DeFi (Decentralized Finance)
+
+- **Privatne aukcije**: Videli smo FHE primer, ali isti problem se može rešiti i ZKP-om (sealed-bid aukcija).
+- **Dark pools**: Berze gde se narudžbine ne objavljuju pre izvršenja, sprečavajući front-running.
+- **Privatni AMM** (Automated Market Maker): Razmena tokena bez otkrivanja veličine pozicija.
+
+### Primene FHE-a
+
+#### 1. Cloud computing nad privatnim podacima
+
+Najdirektija primena: korisnik šalje šifrovane podatke na cloud server, server obavlja izračunavanje (ML inferenca, pretraga, analitika) i vraća šifrovani rezultat. Server nikada ne vidi podatke.
+
+- **Medicinski podaci**: Bolnica može poslati šifrovane pacijentske podatke AI servisu koji predviđa dijagnozu. Servis nikada ne vidi lične podatke pacijenata.
+- **Finansijska analitika**: Banka može angažovati eksternog analitičara da obradi šifrovane transakcione podatke bez otkrivanja informacija o klijentima.
+
+#### 2. Privatno pretraživanje (Private Information Retrieval — PIR)
+
+Korisnik želi da pretraži bazu podataka (npr. Google pretragu) bez otkrivanja šta traži. FHE omogućava serveru da odgovori na upit nad šifrovanim indeksom.
+
+#### 3. Kombinacija FHE i ZKP
+
+Ove dve tehnologije se prirodno dopunjuju:
+
+- **FHE** garantuje da server ne vidi podatke tokom obrade.
+- **ZKP** garantuje da je server zaista izvršio traženu funkciju (a ne neku drugu).
+
+Kombinacijom dobijamo sistem koji je i privatan i verifikabilan. Primer: koordinator u MACI protokolu koristi šifrovane glasove (FHE princip), a zatim generiše ZK dokaz da je ispravno obradio sve glasove.
+
+#### 4. Threshold FHE i višestranačka računanja
+
+U praksi je opasno da jedan entitet drži tajni ključ za dešifrovanje. Rešenje je **threshold FHE**: tajni ključ se deli između $n$ strana, i potrebno je $t$ od $n$ da bi se dešifrovala poruka (npr. 3 od 5 banaka). Ovo se kombinuje sa **MPC (Multi-Party Computation)** protokolima.
+
+### Ograničenja i kompromisi
+
+| | ZKP | FHE |
+|:---|:---|:---|
+| **Šta štiti** | tajnost ulaza pri dokazivanju | tajnost podataka pri obradi |
+| **Performanse** | dokaz sporiji od direktnog računanja, verifikacija brza | 100x–10000x sporije od plaintext računanja |
+| **Složenost implementacije** | visoka (aritmetizacija, kola) | visoka (kvantizacija, šumovi) |
+| **Zrelost** | produkcijski sistemi postoje (Zcash, zkSync) | uglavnom istraživanje i rani stage |
+| **Kvantna otpornost** | zavisi od šeme (STARK: da, SNARK: ne) | da (lattice-based) |
+
+## Trusted Setup
+
+### Šta je Trusted Setup?
+
+**Trusted Setup** (pouzdano postavljanje, ili "ceremonija") je jednokratni proces koji se obavlja pre nego što se ZK sistem počne koristiti. Cilj je generisanje **javnih parametara** (*Common Reference String*, CRS ili *Structured Reference String*, SRS) koji su potrebni i Proveru i Verifikatoru.
+
+Ključni problem: tokom setup-a generišu se i neke **tajne vrednosti** koje se nakon toga moraju zauvek uništiti. Ako neko sačuva ove tajne vrednosti (tzv. **"toxic waste"** — otrovni otpad), može da generiše lažne dokaze koji će proći verifikaciju, tj. može da dokaže netačne tvrdnje.
+
+**Analogija:** Zamislite da se pravi pečat za autentifikaciju dokumenata. Tokom izrade pečata postoji kalup koji mora biti uništen — ako neko zadrži kalup, može praviti lažne dokumente koji izgledaju autentično.
+
+### Zašto je potreban Trusted Setup?
+
+U PLONK i Groth16 protokolima, verifikacija se oslanja na **bilinearno uparivanje na eliptičkim krivama**. Da bi se ovo efikasno implementiralo, potrebno je unapred izračunati određene tačke na eliptičkoj krivi oblika:
+$$[\tau^0]_1, [\tau^1]_1, [\tau^2]_1, \dots, [\tau^d]_1$$
+gde je $\tau$ (**tau**) tajna vrednost, a $[\cdot]_1$ označava množenje generatorom grupe $\mathbb{G}_1$.
+
+Ove tačke su javne i koriste se za evaluaciju polinoma u tački $\tau$ bez otkrivanja same vrednosti $\tau$. Ako bi neko znao $\tau$, mogao bi da konstruiše lažni polinom koji prolazi verifikaciju.
+
+### Powers of Tau ceremonija
+
+Najpopularniji pristup je **Powers of Tau** ceremonija, koja se odvija u više rundi sa mnogo učesnika:
+
+1. **Inicijalizacija**: Prva osoba generiše nasumičnu tajnu vrednost $\tau_1$ i računa:
+   $$[\tau_1^0]_1, [\tau_1^1]_1, \dots, [\tau_1^d]_1$$
+   Zatim uništava $\tau_1$ i objavljuje izračunate tačke.
+
+2. **Doprinos**: Svaki sledeći učesnik uzima prethodne parametre, množi ih sa svojom tajnom $\tau_i$, i uništava svoju tajnu. Na kraju, javni parametri sadrže kombinaciju $\tau_1 \cdot \tau_2 \cdot \dots \cdot \tau_n$.
+
+3. **Bezbednost**: Ceremonija je bezbedna ako je **bar jedan** učesnik bio pošten i uništio svoju tajnu vrednost. Napadač bi morao da kompromituje sve učesnike.
+
+**Primer — Zcash Sapling ceremonija (2018):**
+Zcash je organizovao ceremoniju sa 6 učesnika koji su bili na različitim lokacijama u svetu. Svaki je koristio poseban laptop koji je nakon ceremonije fizički uništen. Jedan od učesnika je ceremoniju obavio na posebnom hardveru u izolovanoj prostoriji bez internet konekcije.
+
+**Primer — Ethereum KZG ceremonija (2022-2023):**
+Za EIP-4844 (proto-danksharding), organizovana je do tada najveća Powers of Tau ceremonija sa više od **140.000 učesnika**. Svako je mogao da doprinese sa bilo kog računara — što više učesnika, to je teže da svi budu kompromitovani.
+
+### Groth16 vs PLONK: razlika u setup-u
+
+**Groth16** zahteva **circuit-specific trusted setup**: za svako novo kolo mora se organizovati nova ceremonija. Ovo je skupo i nepraktično — ako se kolo promeni (npr. dodata nova funkcija), cela ceremonija se mora ponoviti.
+
+**PLONK** koristi **universalni trusted setup**: jednom obavljena ceremonija važi za sva kola do određene veličine (maksimalni stepen polinoma $d$). Kolo se može menjati bez ponovne ceremonije — samo se ponovo računa deo koji ne zavisi od tajnih vrednosti.
+
+| | Groth16 | PLONK |
+|:---|:---|:---|
+| **Tip setup-a** | circuit-specific | universalni |
+| **Veličina dokaza** | ~200 bajtova (najmanji) | ~400 bajtova |
+| **Brzina verifikacije** | najbrža | brza |
+| **Fleksibilnost** | nova ceremonija za svako kolo | jedna ceremonija za sve |
+| **Koristi** | Zcash | zkSync, Aztec, Polygon |
+
+### Transparent setup (bez Trusted Setup-a)
+
+STARK sistemi ne zahtevaju trusted setup — koriste se samo hash funkcije, koje ne zahtevaju nikakve tajne parametre. Ovo ih čini **transparentnim** i eliminišu problem otrovnog otpada. Cena je veći dokaz (deseci kilobajta umesto stotina bajtova).
+
+Takođe postoje novije SNARK varijante poput **Halo2** i **Nova** koje koriste **recursive proof composition** i ne zahtevaju trusted setup sa tajnim vrednostima.
+
+## KZG Commitment šema
+
+### Šta je Commitment šema?
+
+Commitment šema (šema obavezivanja) je kriptografski protokol koji ima dve faze:
+1. **Commit faza**: Prover se "obavezuje" na neku vrednost $v$ objavljivanjem komitmenta $C = \text{commit}(v)$. Prover ne može da promeni $v$ nakon ovoga (binding svojstvo).
+2. **Open faza**: Prover otkriva $v$ i dokazuje da $C$ zaista odgovara $v$ (hiding svojstvo — iz $C$ se ne može saznati $v$).
+
+**Primer jednostavnog komitmenta**: Hash funkcija. $C = H(v)$ je komitment na $v$. Binding: teško je naći $v' \neq v$ takvo da $H(v') = H(v)$. Hiding: iz $H(v)$ ne može se saznati $v$.
+
+### KZG Commitment šema
+
+**KZG** (Kate-Zaverucha-Goldberg, 2010) je commitment šema za **polinome**. Umesto da se obavežemo na jednu vrednost, obavezujemo se na ceo polinom $f(X)$ jednom grupnom tačkom na eliptičkoj krivi.
+
+**Zašto nam trebaju komitmenti na polinome?** U PLONK-u (i drugim ZK sistemima), svedok (witness) i selektor tabele se pretvaraju u polinome. Da bi verifikacija bila efikasna (bez slanja celih polinoma), Prover šalje samo male kriptografske "sažetke" tih polinoma — komitmente. Verifikator onda može da proveri evaluacije tih polinoma u nasumičnim tačkama.
+
+### Matematička osnova KZG-a
+
+#### Setup
+
+Tokom trusted setup-a generiše se **Structured Reference String (SRS)**:
+$$\text{SRS} = \left([1]_1, [\tau]_1, [\tau^2]_1, \dots, [\tau^d]_1, [1]_2, [\tau]_2\right)$$
+gde je $[\tau^i]_1 = \tau^i \cdot G_1$ (množenje generatora grupe $\mathbb{G}_1$ skalarom $\tau^i$), a $\tau$ je tajna vrednost uništena nakon setup-a.
+
+#### Commit
+
+Neka je $f(X) = a_0 + a_1 X + a_2 X^2 + \dots + a_d X^d$ polinom koji Prover želi da komituje.
+
+Komitment je:
+$$C = [f(\tau)]_1 = a_0 \cdot [1]_1 + a_1 \cdot [\tau]_1 + a_2 \cdot [\tau^2]_1 + \dots + a_d \cdot [\tau^d]_1$$
+
+Primetimo: Prover ne zna $\tau$, ali može da izračuna $[f(\tau)]_1$ koristeći SRS. Ovo je jedna tačka na eliptičkoj krivi — konstantne veličine bez obzira na stepen polinoma!
+
+**Primer**: Neka je $f(X) = 3 + 2X + X^2$ i SRS sadrži $[1]_1, [\tau]_1, [\tau^2]_1$. Tada je:
+$$C = 3 \cdot [1]_1 + 2 \cdot [\tau]_1 + 1 \cdot [\tau^2]_1$$
+
+#### Open (Evaluacija u tački)
+
+Verifikator bira nasumičnu tačku $z$ i traži od Provera da dokaže da je $f(z) = y$ (gde je $y$ neka konkretna vrednost).
+
+Ključna matematička opservacija: ako $f(z) = y$, onda $(X - z)$ deli polinom $f(X) - y$, tj. postoji **quotient polinom** $q(X)$ takav da:
+$$f(X) - y = (X - z) \cdot q(X)$$
+
+Primer: $f(X) = X^2 + X + 1$, $z = 1$, $y = f(1) = 3$.
+$$f(X) - 3 = X^2 + X - 2 = (X - 1)(X + 2)$$
+Dakle $q(X) = X + 2$.
+
+Prover izračunava $q(X)$ i šalje dokaz (opening proof):
+$$\pi = [q(\tau)]_1$$
+
+Ovo je opet jedna tačka na eliptičkoj krivi!
+
+#### Verifikacija
+
+Verifikator prima $(C, z, y, \pi)$ i proverava jednakost koristeći **bilinearno uparivanje** $e$:
+$$e(C - [y]_1, [1]_2) = e(\pi, [\tau]_2 - [z]_2)$$
+
+Raspisivanjem ove jednakosti:
+- Leva strana: $e([f(\tau)]_1 - [y]_1, [1]_2) = e([f(\tau) - y]_1, [1]_2)$
+- Desna strana: $e([q(\tau)]_1, [\tau - z]_2)$
+
+Ako važi $f(\tau) - y = q(\tau) \cdot (\tau - z)$, onda su obe strane jednake zahvaljujući bilinearnosti uparivanja. A to upravo važi ako i samo ako je $f(z) = y$.
+
+Verifikator **ne zna $\tau$**, ali zahvaljujući SRS-u ($[\tau]_2$ je javno) može da proveri ovu jednakost.
+
+### Svojstva KZG komitmenta
+
+| Svojstvo | Opis |
+|:---|:---|
+| **Veličina komitmenta** | 1 tačka na eliptičkoj krivi (~48 bajtova za BLS12-381) |
+| **Veličina dokaza** | 1 tačka na eliptičkoj krivi (~48 bajtova) |
+| **Vreme verifikacije** | 1 bilinearno uparivanje (brzo) |
+| **Binding** | Teško je naći $f' \neq f$ sa istim komitmentom (zavisi od hardness pretpostavke) |
+| **Hiding** | Komitment ne otkriva koeficijente polinoma |
+| **Potreban trusted setup** | Da — SRS mora biti generisan pouzdano |
+
+### Batch opening
+
+Praktan problem: u PLONK-u je potrebno otvoriti više polinoma u istoj tački $z$ (npr. $A(z), B(z), C(z), T(z)$). Umesto slanja zasebnog dokaza za svaki polinom, KZG podržava **batch opening** — jedan jedini dokaz za sve polinome odjednom.
+
+Verifikator šalje nasumičan skalar $\gamma$, a Prover kombinuje polinome:
+$$h(X) = f_1(X) + \gamma \cdot f_2(X) + \gamma^2 \cdot f_3(X) + \dots$$
+
+Zatim se otvara samo $h(X)$ u tački $z$, što daje jedan dokaz za sve polinome. Ovo je kritično za efikasnost PLONK-a.
+
+### KZG u PLONK-u — kompletna slika
+
+Sada možemo da povežemo sve što smo naučili:
+
+1. **Trusted setup**: Generiše se SRS sa tačkama $[\tau^i]_1$ za $i = 0, 1, \dots, d$.
+
+2. **Prover** izračunava polinome $A(X), B(X), C(X), T(X), Z(X)$ iz witness tabele i komituje se na svaki:
+   $$C_A = [A(\tau)]_1, \quad C_B = [B(\tau)]_1, \quad \dots$$
+
+3. **Verifikator** šalje nasumičnu tačku $z$.
+
+4. **Prover** otvara sve polinome u tački $z$ i šalje evaluacije $A(z), B(z), C(z), \dots$ zajedno sa batch opening dokazom $\pi$.
+
+5. **Verifikator** proverava:
+   - Da komitmenti odgovaraju evaluacijama (KZG verifikacija)
+   - Da važi $G(z) = Z_h(z) \cdot T(z)$ (PLONK jednakost)
+
+Ceo dokaz se sastoji od nekoliko tačaka na eliptičkoj krivi i nekoliko skalarnih vrednosti — ukupno ~400-600 bajtova, bez obzira na veličinu kola!
+
+### Alternativne commitment šeme
+
+KZG nije jedina commitment šema za polinome. Alternativa je:
+
+- **FRI (Fast Reed-Solomon IOP of Proximity)** — koristi se u STARK sistemima. Ne zahteva trusted setup, ali daje veće dokaze (logaritamska veličina umesto konstantne). Zasniva se na hash funkcijama.
+
+- **IPA (Inner Product Argument)** — koristi se u Bulletproofs i Halo2. Ne zahteva trusted setup, ali je verifikacija sporija (linearna umesto konstantne).
+
+| Commitment šema | Trusted setup | Veličina dokaza | Brzina verifikacije | Koristi |
+|:---|:---|:---|:---|:---|
+| **KZG** | Da | O(1) — konstantna | O(1) — brza | PLONK, Groth16 |
+| **FRI** | Ne | O(log² n) — logaritamska | O(log² n) | STARK, zkSync (starija ver.) |
+| **IPA** | Ne | O(log n) — logaritamska | O(n) — spora | Bulletproofs, Halo2 |
