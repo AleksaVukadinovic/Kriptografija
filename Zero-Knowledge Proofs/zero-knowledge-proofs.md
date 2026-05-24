@@ -323,3 +323,67 @@ U zavisnosti od toga koje se komponente koriste, dobijamo različite porodice ZK
 | :--- | :--- |
 | • kratki dokazi<br>• brza verifikacija<br>• zahteva trusted setup (postoje i novije varijante bez trusted setup-a)<br>• u klasičnim varijantama koristi eliptičke krive i pairings (postoje i post-kvantne varijante bez eliptičkih krivih) | • veći dokazi<br>• transparentan setup<br>• oslanja se na hash funkcije<br>• otporan je na kvantne računare |
 | **Primeri:**<br>Groth16<br>PLONK sa KZG commitmentima | |
+
+## Uvod u Circom
+
+**Circom** je programski jezik i alat za pisanje aritmetičkih kola (circuits) koja se koriste u zero-knowledge proofs (ZKP) sistemima, najčešće uz SNARK-ove poput Groth16 ili PLONK.
+
+Najjednostavnije rečeno:
+- napišemo logiku/verifikaciju u Circom-u
+- Circom to pretvori u matematičko kolo
+- Nad tim kolom generišu zero-knowledge dokazi.
+
+To omogućava da neko dokaže da zna neku informaciju ili da je izvršio neku računicu, bez otkrivanja same informacije.
+
+Upoznajmo se sa nekim osnovnim pojmovima:
+- **Trusted setup** - Ceremonija generisanja javnih parametara, koji se koriste za generisanje i verifikaciju dokaza
+- **Ogranicenja (constraints)** - Algebarske jedancine nad konacnim poljem koje svaka validna witness tabela mora da zadovolji
+- **ZK-friendly hash funkcije** - Poseidon heš funkcija je mnogo pogodnija za
+aritmetička kola od Keccak heš funkcije, jer generiše
+znatno manje ograničenja, što utiče na veličinu dokaza
+
+Kako radimo sa Circom-om?
+- Pisemo kolo - definisemo signale, pomocne vrednosti i ogranicenja
+- Kompajliramo - Kolo se prevodi u R1CS (Rank 1 Constraint System) format
+- Trusted setup - Kod Groth16 se setup generise za svako kolo, a kod PLONK-a imamo univerzalni pristup
+- Witness - Za privatne i javne inpute racuna se kompletna witness tabela
+- Dokaz - Prover koristi witness i trusted setup da napravi ZK dokaz
+- Verifikacija - Verifier proverava dokaz koristeci trusted setup i izazov koji je poslao prover-u
+
+Circom radi pomoci singala i promenljivih:
+```circom
+Singals:
+
+signal input a;
+signal output b;
+signal c;
+
+Variables:
+
+var x = 5;
+```
+
+Aritmeticki operatori:
+- `+` - sabiranje po modulu p
+- `-` - oduzimanje po modulu p
+- `*` - mnozenje po modulu p
+- `/` - mnozenjem inverzom od b ako postoji
+- `\` - celobrojno deljenje
+- `%` - ostatak pri deljenju
+- `**` - stepenovanje
+
+Logicki operatori i bitovski operatori:
+- `==` - jednakost
+- `!=` - razlicitost
+- `<=,>=` - poredjenje
+- `&&, ||, ~` - logicki operatori
+- `&` - bitovsko AND
+- `|` - bitovsko OR
+- `^` - bitovsko XOR
+- `-` komplement
+- `<<,>>` - bitshift
+
+Naredbne kontrola toka:
+- Broj constraintova u kolu mora biti fiksiran pre racunanja witness-a
+- Zato if/else grananja koja generisu kontraintove ne smeju zavisiti od nepoznatih input signala
+- Isto vazi

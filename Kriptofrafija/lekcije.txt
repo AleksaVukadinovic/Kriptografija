@@ -1,0 +1,83 @@
+- Specijalni kurs - Kriptografija
+
+1. cas - uvodni cas - Djokic - kriptografija1.pdf; Zivkoviceva skripta
+
+- vrste sifara: protocna, blokovska
+- vrste sistema: simetricni i asimetricni
+- cezar, afina sifra, one time pad
+- blokovski, digrami, bigrami, trigrami, AES
+
+Vezbe:
+Uvod u kriptografiju, osecaj sa velikim brojevima
+Jednostavni sifarski sistemi- cezar, vigener
+Osnove simetricne kriptografije
+Osnove asimetrične kriptografije
+Osnove hesiranja
+Osnove kriptoanalize
+
+
+
+2. cas - Djokic - 1.pdf, 2.pdf; Zivkoviceva skripta
+
+- teorijski deo teorije brojeva, XOR sa bitovima i kako se to prenosi na polinome.
+- Osnove brojeva, mod p, inverz
+- mod 2, polinomi, inverz, mnozenje
+- Stepenovanje kvadriranjem, slozenost
+- - random generator;
+- Problem diskretnog logaritma u konacnom polju,
+- - asimetricna kriptografija, DPL problem diskretnog logaritma; razmena kljuceva;
+- Difi-Helman razmena kljuca
+- blokovske sifre - AES (S tabela, prosirivanje kljuca, SAES, desifrovanje, kompletan)
+- Nacini koriscenja blok sifri.
+
+Vezbe- Simetrična kriptografija:
+Protočni sistemi
+Blokovski sistemi
+Uopšteno DES,AES
+Meet in the middle napad za dvostruki DES
+Modovi za korišćenje blokovskih šifara
+Problemi sa ECB-modom i sa protočnim šiframa
+
+
+
+
+
+3. cas - Djokic - 3.pdf; Zivkoviceva skripta
+
+- RC4
+- hes fje, integritet poruke, inicijalizacioni vektor
+- MAC - message authentication code
+- MD5
+- digitalni potpis
+- sistemi sa javnim ključem
+- RSA
+
+Vezbe - Hesiranje:
+Osobine kriptografskih hes funkcija
+Rodjendanski paradoks - idejno
+Obavezujuca sema(Commitment scheme)
+Hash-based Message Authentication Code
+Merkle stablo
+Key derivation functions
+
+
+
+4. cas - elipticke krive - Zivkoviceva skripta
+
+- ElGamal algoritam za sifrovanje
+- elipticke krive
+- problem diskretnog algoritma sa elip. krivama
+- ElGamal sa elip. krivama
+
+Vezbe - Asimetricna kriptografija:
+Mesi-Omura - idejno
+RSA - idejno i primer sa malim brojevima
+Problem diskretnog logaritma
+Diffie Hellman
+Elipticke krive - osnove
+ElGamal - idejno
+Digitalni potpisi
+Vremenski pecati
+Sertifikati
+Onion i garlic sifrovanje
+
