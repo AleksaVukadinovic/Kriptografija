@@ -7,29 +7,6 @@ Grupa je skup $G$ zajedno sa operacijom $*$, tako da važe sledeća svojstva:
 3. **Neutralni element**: postoji element $e \in G$ takav da za svako $a \in G$ važi $e * a = a * e = a$
 4. **Inverzni element**: za svako $a \in G$ postoji element $a^{-1} \in G$ takav da važi: $a * a^{-1} = a^{-1} * a = e$
 
-### Primeri grupa
-
-*   **Primer 1: $(N_0, +)$ nije grupa**
-    *   Zatvorenost: DA
-    *   Asocijativnost: DA
-    *   Neutralni element: DA, to je 0
-    *   Inverzni element: NE
-*   **Primer 2: $(Z, +)$ je grupa**
-    *   Zatvorenost: DA
-    *   Asocijativnost: DA
-    *   Neutralni element: DA, to je 0
-    *   Inverzni element: DA, za $a$ je inverz $-a$
-*   **Primer 3: $(Z, \cdot)$ nije grupa**
-    *   Zatvorenost: DA
-    *   Asocijativnost: DA
-    *   Neutralni element: DA, to je 1
-    *   Inverzni element: NE
-*   **Primer 4: $(Q\setminus\{0\}, \cdot)$ je grupa**
-    *   Zatvorenost: DA
-    *   Asocijativnost: DA
-    *   Neutralni element: DA, to je 1
-    *   Inverzni element: DA, za $a$ je inverz $1/a$
-
 ### Ciklična grupa $Z_p^*$
 
 Neka je $p$ prost broj. $Z_p^*$ je skup $\{1, 2, ..., p - 1\}$. Operacija u ovoj grupi je množenje po modulu $p$, definisana sa:
@@ -300,12 +277,6 @@ Najpoznatije porodice problema su:
 
 Ove varijante uvode dodatnu strukturu i optimizacije, kako bi algoritmi bili brži i pogodniji za implementaciju.
 
-### FHE (Fully Homomorphic Encryption)
-Prvu potpuno homomorfnu šemu šifrovanja predstavio je Craig Gentry 2009. godine u svojoj doktorskoj disertaciji.
-Od tada je razvijen veliki broj FHE šema, uz značajan napredak u efikasnosti, bootstrapping tehnikama i praktičnoj upotrebljivosti.
-Važno je da se moderne FHE šeme zasnivaju na lattice-based problemima, odnosno na Module-LWE.
-Danas razvoj FHE-a guraju i akademska zajednica i industrija, sa sve većim fokusom na praktične primene nad šifrovanim podacima.
-
 ## ZKP (Zero Knowledge Proof)
 
 ZKP sistemi kombinuju tri glavne komponente:
@@ -314,8 +285,8 @@ ZKP sistemi kombinuju tri glavne komponente:
 3. protokol za proveru tvrdnje nad komitovanim podacima
 
 U zavisnosti od toga koje se komponente koriste, dobijamo različite porodice ZK sistema. Dve najpoznatije porodice su:
-*   **SNARK** (Succinct Non-interactive Argument of Knowledge)
-*   **STARK** (Scalable Transparent Argument of Knowledge)
+*   **SNARK** (Succinct Non-interactive Argument of Knowledge) - zasnovano na eliptickim krivama
+*   **STARK** (Scalable Transparent Argument of Knowledge) - zasnovano na hash funkcijama
 
 ### SNARK vs STARK
 
@@ -333,6 +304,11 @@ Zero-Knowledge Proof (Dokaz sa nultim znanjem) ti omogućava upravo to: **Da mat
 U ovom protokolu uvek postoje dve uloge:
 1. **Prover (onaj koji dokazuje)**: Želi da dokaže da nešto zna (npr. ti koji znaš put kroz lavirint).
 2. **Verifier (onaj koji proverava)**: Proverava tvoj dokaz i odgovara samo sa **True** (dokaz je tačan) ili **False** (dokaz je netačan/lažan).
+
+Svaki Zero-Knowledge dokaz treba da zadovoljava sledeca svojstva:
+1. **Potpunost** - Ako je tvrdnja istinita i ako oba ucesnika (dokazivac i verifikator) posteno prate pravila protokola, verifikator ce uvek biti ubedjen u tacnost tvrdnje.
+2. **Pouzdanost** - Ako je tvrdnja lazna, nijedan varalica ne moze da ubedi postenog verifikatora da je tvrdnja tacna, osim sa nekom ekstremno malom, zanemarljivom verovatnocom
+3. **Svojstvo nultog znanja** - Ako je tvrdnja istinita, nijedan verifikator (cak i ako vara i ne prati protokol) ne moze da sazna nista vise osim same cinjenice da je tvrdnja tacna
 
 ### Šta je Circom?
 **Circom** je programski jezik, ali nije kao Python, Java ili C. On se zove **HDL** (*Hardware Description Language*).
@@ -431,12 +407,6 @@ Ovaj deo iz prezentacije je jako bitan za razumevanje šire slike. Kako od Circo
 5. **Dokaz (Proof):** Prover, koristeći svoj `witness` i parametre iz Setup-a generiše mali kriptografski dokaz (nekoliko bajtova).
 6. **Verifikacija:** Verifier (najčešće neki Smart Contract na Ethereumu) primi dokaz, brzinom svetlosti primeni matematiku i kaže Da ili Ne.
 
-### Alati za rad sa Circomom
-1. **zkREPL** (https://zkrepl.dev) - Pomenuto u slajdovima. Ovo je tvoj najbolji prijatelj. To je "igraonica" u browseru gde pišeš kod na jednoj strani ekrana, a desno ubacuješ probne ulazne podatke, generišeš witness i gledaš da li dokaz prolazi. Za početak, apsolutno nikakve instalacije na tvoj kompjuter ti nisu potrebne.
-2. **Circomlib** - Ne pišeš sve ručno. Ne moraš da pišeš kako radi heš funkcija. Ljudi iz zajednice su već napisali kod i šablone za to. Ti samo pozoveš `include "circomlib/circuits/poseidon.circom";` i iskoristiš templejt.
-
-*Savet za učenje:* Kada budeš gledao primere, uvek se fokusiraj na to da razlučiš šta ide u `===` ograničenje. Ograničenje je jedina brana koja sprečava zlonamernog čoveka da lažira dokaz.
-
 ## PLONK
 
 PLONK je jedan od najpopularnijih i najefikasnijih savremenih protokola za ZKP (Zero-Knowledge Proofs), tačnije spada u kategoriju zk-SNARK-ova.
@@ -467,13 +437,11 @@ Svaki red u tabeli predstavlja jedan *gate* (kapiju). Kolone **$a$** i **$b$** s
 **Opšta struktura (sa ograničenjima / *constraints*):** 
 | Kolona $a$ | Kolona $b$ | Kolona $c$ | Ograničenje (*Constraint*) | Opis 
 
- |
 | --- | --- | --- | --- | --- |
 | $x$ | $x$ | $u$ | $a \cdot b - c = 0$ | Računanje $x^2$ |
 | $u$ | $x$ | $v$ | $a \cdot b - c = 0$ | Računanje $x^3$ |
 | $v$ | $x$ | $0$ | $a + b + 5 - y = 0$ | Provera izraza sa javnim inputom $y$ (zato je $c=0$) 
 
- |
 
 **Konkretan izgled tabele za primer ($x=3, u=9, v=27$):** 
 | $a$ | $b$ | $c$ |
