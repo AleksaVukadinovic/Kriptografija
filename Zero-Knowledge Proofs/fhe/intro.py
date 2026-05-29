@@ -1,11 +1,14 @@
+from time import time
+
 from concrete import fhe
 from concrete.fhe.compilation.utils import inputset
 
 # funkcija koju server izvrsava nad siforvanim podacima
 def private_score(x, y):
-    return 3*x + 2*y + 1
+    return 5*x + 4*y + 2
 
 if __name__ == "__main__":
+    start_time = time()
     # server kompajlira funkciju u FHE kolo, inputset je skup ulaznih vrednosti koji treba kompajleru
     compiler = fhe.Compiler(private_score, {"x": "encrypted", "y": "encrypted"})
     inputset = [(x,y) for x in range(8) for y in range(8)]
@@ -26,5 +29,6 @@ if __name__ == "__main__":
     # korisnik desifruje sta je dobio od servera
     result = circuit.decrypt(encrypted_result)
 
-    print(result)
+    end_time = time()
+    print(end_time - start_time)
     print("Actual result:", 3 * x_private + 2 * y_private + 1)
